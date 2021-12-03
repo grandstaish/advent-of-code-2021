@@ -1,118 +1,68 @@
-@file:Suppress("LocalVariableName")
-
+import RatingStrategy.CO2Scrubber
+import RatingStrategy.O2Generator
 import java.io.File
 
 fun main() {
     val report = File("src/day03/input.txt").readLines()
 
     val tree = Tree()
+    tree.parse(report)
 
-    for (line in report) {
-        tree.add(line)
-    }
-
-    val o2GeneratorRating = tree.findRating(RatingStrategy.O2Generator)
-    val co2ScrubberRating = tree.findRating(RatingStrategy.CO2Scrubber)
-
-    println(o2GeneratorRating * co2ScrubberRating)
+    println(tree.findRating(O2Generator) * tree.findRating(CO2Scrubber))
 }
 
 class Tree {
-    private val root = Node()
+    private val root = Node(-1)
 
-    fun add(line: String) {
-        var curr = root
-        for (c in line) {
-            curr = if (c == '1') {
-                if (curr.one == null) {
-                    val n = Node()
-                    curr.one = n
-                    n
-                } else {
-                    curr.one!!
-                }
-            } else {
-                if (curr.zero == null) {
-                    val n = Node()
-                    curr.zero = n
-                    n
-                } else {
-                    curr.zero!!
-                }
+    fun parse(report: List<String>) {
+        for (line in report) {
+            var curr = root
+            for (c in line) {
+                curr = curr.put(c - '0')
             }
-            curr.frequency++
         }
     }
 
     fun findRating(strategy: RatingStrategy): Int{
-        val stack = ArrayDeque<Int>()
-
-        var curr = root
-        while (curr.one != null || curr.zero != null) {
-            curr = if (nextNodeIsOne(strategy, curr)) {
-                stack.add(1)
-                curr.one!!
-            } else {
-                stack.add(0)
-                curr.zero!!
-            }
-        }
-
         var rating = 0
-        var shift = 0
-        while (stack.isNotEmpty()) {
-            rating = rating or (stack.removeLast() shl shift)
-            shift++
+        var curr = strategy.next(root)
+
+        while (curr != null) {
+            rating = curr.value or (rating shl 1)
+            curr = strategy.next(curr)
         }
 
         return rating
-    }
-
-    private fun nextNodeIsOne(strategy: RatingStrategy, node: Node): Boolean {
-        val one = node.one ?: return false
-        val zero = node.zero ?: return true
-
-        return when (strategy) {
-            RatingStrategy.O2Generator -> one.frequency >= zero.frequency
-            RatingStrategy.CO2Scrubber -> one.frequency < zero.frequency
-        }
     }
 }
 
 enum class RatingStrategy {
     O2Generator,
-    CO2Scrubber
+    CO2Scrubber;
+
+    fun next(node: Node): Node? {
+        val one = node[1] ?: return node[0]
+        val zero = node[0] ?: return node[1]
+
+        return when (this) {
+            O2Generator -> if (one.frequency >= zero.frequency) one else zero
+            CO2Scrubber -> if (one.frequency < zero.frequency) one else zero
+        }
+    }
 }
 
-class Node {
+class Node(val value: Int) {
+    private val children = Array<Node?>(2) { null }
     var frequency = 0
-    var one: Node? = null
-    var zero: Node? = null
-}
+        private set
 
-//private fun part1(report: List<String>) {
-//    val N = report[0].length
-//    val mem = IntArray(N)
-//
-//    for (line in report) {
-//        for (i in 0 until N) {
-//            if (line[i] == '1') {
-//                mem[i]++
-//            } else {
-//                mem[i]--
-//            }
-//        }
-//    }
-//
-//    var gamma = 0
-//    var shift = N - 1
-//    for (i in 0 until N) {
-//        if (mem[i] > 0) {
-//            gamma = gamma or (1 shl shift)
-//        }
-//        shift--
-//    }
-//
-//    val mask = 2.0.pow(N).toInt()  - 1
-//    println(gamma * (gamma xor mask))
-//}
+    operator fun get(value: Int) = children[value]
+
+    fun put(value: Int): Node {
+        val child = children[value] ?: Node(value).also {
+            children[value] = it
+        }
+        child.frequency++
+        return child
+    }
+}
