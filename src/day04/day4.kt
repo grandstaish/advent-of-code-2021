@@ -23,7 +23,7 @@ fun main() {
     println(lastScore)
 }
 
-class Board(data: String) {
+private class Board(data: String) {
     private val indexMap = Array<Pair<Int, Int>?>(100) { null }
     private val rowCounts = IntArray(5)
     private val colCounts = IntArray(5)

@@ -1,3 +1,5 @@
+package day02
+
 import java.io.File
 
 fun main() {
@@ -20,5 +22,5 @@ fun main() {
         }
     }
 
-    println("x: $x, y: $y, mult: ${x * y}")
+    println(x * y)
 }

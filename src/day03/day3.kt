@@ -1,5 +1,7 @@
-import RatingStrategy.CO2Scrubber
-import RatingStrategy.O2Generator
+package day03
+
+import day03.RatingStrategy.CO2Scrubber
+import day03.RatingStrategy.O2Generator
 import java.io.File
 
 fun main() {
@@ -11,7 +13,7 @@ fun main() {
     println(tree.findRating(O2Generator) * tree.findRating(CO2Scrubber))
 }
 
-class Tree {
+private class Tree {
     private val root = Node(-1)
 
     fun parse(report: List<String>) {
@@ -36,7 +38,7 @@ class Tree {
     }
 }
 
-enum class RatingStrategy {
+private enum class RatingStrategy {
     O2Generator,
     CO2Scrubber;
 
@@ -51,7 +53,7 @@ enum class RatingStrategy {
     }
 }
 
-class Node(val value: Int) {
+private class Node(val value: Int) {
     private val children = Array<Node?>(2) { null }
     var frequency = 0
         private set
