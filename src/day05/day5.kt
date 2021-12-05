@@ -1,6 +1,7 @@
 package day05
 
 import java.io.File
+import kotlin.math.sign
 
 fun main() {
     val lines = File("src/day05/input.txt").readLines()
@@ -12,18 +13,16 @@ fun main() {
         val (sx, sy) = start.split(",").map { it.toInt() }
         val (ex, ey) = end.split(",").map { it.toInt() }
 
-        val dx = ex - sx
-        val dy = ey - sy
+        val dx = (ex - sx).sign
+        val dy = (ey - sy).sign
 
         var cx = sx
         var cy = sy
 
         while (cx != ex || cy != ey) {
             mem[cx to cy] = mem.getOrDefault(cx to cy, 0) + 1
-            if (dx > 0) cx++
-            if (dx < 0) cx--
-            if (dy > 0) cy++
-            if (dy < 0) cy--
+            cx += dx
+            cy += dy
         }
 
         mem[cx to cy] = mem.getOrDefault(cx to cy, 0) + 1
