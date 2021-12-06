@@ -12,10 +12,7 @@ fun main() {
     }
 
     for (day in 0 until 256) {
-        var babies = 0L
-        if (fishies[0] > 0) {
-            babies += fishies[0]
-        }
+        val babies = fishies[0]
         for (i in 0 until 8) {
             fishies[i] = fishies[i + 1]
         }
