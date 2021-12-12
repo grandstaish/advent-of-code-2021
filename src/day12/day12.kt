@@ -4,24 +4,25 @@ import java.io.File
 
 fun main() {
     val start = parseInput(File("src/day12/input.txt").readLines())
-    val paths = dfs(start, emptySet(), false)
-    println(paths.size)
+    println(dfs(start, emptySet(), false))
 }
 
-private fun dfs(node: Node, visited: Set<String>, hasMadeException: Boolean): Set<String> {
-    if (node.value == "end") return setOf("end")
-    if (visited.contains(node.value)) return emptySet()
+private fun dfs(node: Node, visited: Set<String>, hasMadeException: Boolean): Int {
+    if (node.value == "end") return 1
 
-    val paths = mutableSetOf<String>()
-    for (child in node.children) {
-        paths += if (!hasMadeException && !node.isLarge && node.value != "start") {
-            dfs(child, visited, true) + dfs(child, visited + node.value, false)
-        } else {
-            dfs(child, if (node.isLarge) visited else visited + node.value, hasMadeException)
-        }
+    var exception = hasMadeException
+    if (visited.contains(node.value)) {
+        if (hasMadeException || node.value == "start") return 0
+        exception = true
     }
 
-    return paths.map { node.value + it }.toSet()
+    var paths = 0
+    val nextVisited = if (node.isLarge) visited else visited + node.value
+    for (child in node.children) {
+        paths += dfs(child, nextVisited, exception)
+    }
+
+    return paths
 }
 
 private fun parseInput(input: List<String>): Node {
