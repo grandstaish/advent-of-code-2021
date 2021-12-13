@@ -5,60 +5,60 @@ import java.io.File
 fun main() {
     val (gridInput, foldsInput) = File("src/day13/input.txt").readText().split("\n\n")
     val grid = Grid(gridInput)
-    val folds = foldsInput.lines().map { Fold.parse(it) }
+    val folds = foldsInput.lines().map { parseFold(it) }
 
-    for (fold in folds) {
-        grid.fold(fold)
+    for ((axis, index) in folds) {
+        grid.fold(axis, index)
     }
 
-    grid.prettyPrint()
+    println(grid.toString())
 }
 
-class Grid(data: String) {
+private class Grid(data: String) {
     private val grid: Array<BooleanArray>
     private var rows: Int
     private var cols: Int
 
     init {
         val coordinates = data.lines().map { line -> line.split(",").map { it.toInt() } }
+
         rows = coordinates.maxOf { it[1] } + 1
         cols = coordinates.maxOf { it[0] } + 1
+        grid = Array(rows) { BooleanArray(cols) }
 
-        grid = Array(rows) { y ->
-            BooleanArray(cols) { x ->
-                coordinates.any { it[0] == x && it[1] == y }
-            }
+        for (coordinate in coordinates) {
+            grid[coordinate[1]][coordinate[0]] = true
         }
     }
 
-    fun fold(fold: Fold) {
-        when (fold.axis) {
+    fun fold(axis: Axis, index: Int) {
+        when (axis) {
             Axis.Y -> {
-                for (row in fold.index until rows) {
-                    val opposite = fold.index - (row - fold.index)
+                for (row in index until rows) {
+                    val opposite = index - (row - index)
                     if (opposite >= 0) {
                         for (col in 0 until cols) {
                             grid[opposite][col] = grid[opposite][col] || grid[row][col]
                         }
                     }
                 }
-                rows = fold.index
+                rows = index
             }
             Axis.X -> {
-                for (col in fold.index until cols) {
-                    val opposite = fold.index - (col - fold.index)
+                for (col in index until cols) {
+                    val opposite = index - (col - index)
                     if (opposite >= 0) {
                         for (row in 0 until rows) {
                             grid[row][opposite] = grid[row][opposite] || grid[row][col]
                         }
                     }
                 }
-                cols = fold.index
+                cols = index
             }
         }
     }
 
-    fun prettyPrint() {
+    override fun toString(): String {
         val sb = StringBuilder()
         for (row in 0 until rows) {
             for (col in 0 until cols) {
@@ -66,18 +66,14 @@ class Grid(data: String) {
             }
             sb.append('\n')
         }
-        println(sb.toString())
+        return sb.toString()
     }
 }
 
-data class Fold(val axis: Axis, val index: Int) {
-    companion object {
-        fun parse(data: String): Fold {
-            val (axisInput, indexInput) = data.split("=")
-            val axis = if (axisInput.last() == 'x') Axis.X else Axis.Y
-            return Fold(axis, indexInput.toInt())
-        }
-    }
+private fun parseFold(data: String): Pair<Axis, Int> {
+    val (axisInput, indexInput) = data.split("=")
+    val axis = if (axisInput.last() == 'x') Axis.X else Axis.Y
+    return axis to indexInput.toInt()
 }
 
 enum class Axis { X, Y }
