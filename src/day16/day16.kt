@@ -3,9 +3,52 @@ package day16
 import java.io.File
 
 fun main() {
-    val input = File("src/day16/input.txt").readText().toBinaryString()
+    println(parse(File("src/day16/input.txt")).compute())
+}
 
-    println(input.toBitsTransmission(0).compute())
+private fun parse(input: File): BitsTransmission {
+    val bits = input.readText().toBinaryString()
+
+    var current = 0
+
+    fun read(length: Int): String {
+        val result = bits.substring(current, current + length)
+        current += length
+        return result
+    }
+
+    fun readBitsTransmission(): BitsTransmission {
+        val version = read(3).toInt(radix = 2)
+        val typeId = read(3).toInt(radix = 2)
+        return when (typeId) {
+            4 -> {
+                val sb = StringBuilder()
+                do {
+                    val c = read(1)
+                    sb.append(read(4))
+                } while (c == "1")
+                Literal(version, value = sb.toString().toLong(radix = 2))
+            }
+            else -> {
+                val children = mutableListOf<BitsTransmission>()
+                if (read(1) == "0") {
+                    val childLength = read(15).toInt(radix = 2)
+                    val end = current + childLength
+                    while (current < end) {
+                        children += readBitsTransmission()
+                    }
+                } else {
+                    val childCount = read(11).toInt(radix = 2)
+                    repeat(childCount) {
+                        children += readBitsTransmission()
+                    }
+                }
+                Operation(version, typeId.toOperator(), children)
+            }
+        }
+    }
+
+    return readBitsTransmission()
 }
 
 private fun BitsTransmission.compute(): Long = when (this) {
@@ -13,13 +56,7 @@ private fun BitsTransmission.compute(): Long = when (this) {
     is Operation -> {
         when (operator) {
             Operator.Sum -> children.sumOf { it.compute() }
-            Operator.Product -> {
-                var result = children[0].compute()
-                for (i in 1 until children.size) {
-                    result *= children[i].compute()
-                }
-                result
-            }
+            Operator.Product -> children.fold(1L) { acc, it -> acc * it.compute() }
             Operator.Min -> children.minOf { it.compute() }
             Operator.Max -> children.maxOf { it.compute() }
             Operator.GreaterThan -> if (children[0].compute() > children[1].compute()) 1 else 0
@@ -27,90 +64,6 @@ private fun BitsTransmission.compute(): Long = when (this) {
             Operator.EqualTo -> if (children[0].compute() == children[1].compute()) 1 else 0
         }
     }
-}
-
-private enum class Operator {
-    Sum,
-    Product,
-    Min,
-    Max,
-    GreaterThan,
-    LessThan,
-    EqualTo
-}
-
-private sealed class BitsTransmission {
-    abstract val version: Int
-    abstract val contentLength: Int
-}
-
-private data class Literal(
-    override val version: Int,
-    override val contentLength: Int,
-    val value: Long
-) : BitsTransmission()
-
-private data class Operation(
-    override val version: Int,
-    override val contentLength: Int,
-    val operator: Operator,
-    val children: List<BitsTransmission>
-) : BitsTransmission()
-
-private fun String.toBitsTransmission(offset: Int): BitsTransmission {
-    val version = substring(offset, offset + 3).parseBinaryLong().toInt()
-    return when (val typeId = substring(offset + 3, offset + 6)) {
-        "100" -> {
-            var i = offset + 6
-            val sb = StringBuilder()
-            do {
-                sb.append(substring(i + 1, i + 5))
-                i += 5
-            } while (this[i - 5] == '1')
-            Literal(version, i - offset, sb.toString().parseBinaryLong())
-        }
-        else -> {
-            val operator = typeId.parseBinaryLong().toOperator()
-            val children = mutableListOf<BitsTransmission>()
-            var len = 0
-            if (this[offset + 6] == '0') {
-                while (len < substring(offset + 7, offset + 22).parseBinaryLong()) {
-                    val child = toBitsTransmission(offset + 22 + len)
-                    len += child.contentLength
-                    children += child
-                }
-                len += 22
-            } else {
-                val childCount = substring(offset + 7, offset + 18).parseBinaryLong().toInt()
-                repeat(childCount) {
-                    val child = toBitsTransmission(offset + 18 + len)
-                    len += child.contentLength
-                    children += child
-                }
-                len += 18
-            }
-            Operation(version, len, operator, children)
-        }
-    }
-}
-
-private fun Long.toOperator(): Operator = when (this) {
-    0L -> Operator.Sum
-    1L -> Operator.Product
-    2L -> Operator.Min
-    3L -> Operator.Max
-    5L -> Operator.GreaterThan
-    6L -> Operator.LessThan
-    7L -> Operator.EqualTo
-    else -> throw IllegalArgumentException("Invalid operator: $this")
-}
-
-private fun String.parseBinaryLong(): Long {
-    var result = 0L
-    for (c in this) {
-        result = (result shl 1) + (c - '0')
-    }
-    return result
 }
 
 private fun String.toBinaryString(): String {
@@ -140,3 +93,33 @@ private fun Char.toBinaryString() = when (this) {
     'F' -> "1111"
     else -> throw IllegalArgumentException("Invalid hex character: $this")
 }
+
+private fun Int.toOperator(): Operator = when (this) {
+    0 -> Operator.Sum
+    1 -> Operator.Product
+    2 -> Operator.Min
+    3 -> Operator.Max
+    5 -> Operator.GreaterThan
+    6 -> Operator.LessThan
+    7 -> Operator.EqualTo
+    else -> throw IllegalArgumentException("Invalid operator: $this")
+}
+
+private enum class Operator {
+    Sum, Product, Min, Max, GreaterThan, LessThan, EqualTo
+}
+
+private sealed class BitsTransmission {
+    abstract val version: Int
+}
+
+private data class Literal(
+    override val version: Int,
+    val value: Long
+) : BitsTransmission()
+
+private data class Operation(
+    override val version: Int,
+    val operator: Operator,
+    val children: List<BitsTransmission>
+) : BitsTransmission()
