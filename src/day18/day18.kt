@@ -35,7 +35,7 @@ private fun Node.magnitude(): Int = when (this) {
 
 private fun Node.reduce(): Node {
     while (explodeIfNecessary(0) || splitIfNecessary()) {
-        //println(format())
+        // Loop until no changes are made.
     }
     return this
 }
@@ -45,7 +45,6 @@ private fun Node.splitIfNecessary(): Boolean {
         if (left.splitIfNecessary() || right.splitIfNecessary()) return true
     }
     if (this is LiteralNum && value >= 10) {
-        //println("Splitting $this")
         val newNode = PairNum()
         newNode.left = LiteralNum(value / 2)
         newNode.right = LiteralNum(value - value / 2)
@@ -61,7 +60,6 @@ private fun Node.explodeIfNecessary(depth: Int): Boolean {
             return true
         }
         if (depth >= 4) {
-            //println("Exploding $this")
             val parents = mutableSetOf<Node>(this)
             var p: PairNum? = parent
             while (p != null) {
@@ -158,88 +156,3 @@ private class PairNum : Node() {
         return "[$left,$right]"
     }
 }
-
-//private fun Node.format(): String {
-//    return formatInternal().lines.joinToString(separator = "\n")
-//}
-//
-//private fun max(a: Int, b: Int, c: Int): Int {
-//    return maxOf(maxOf(a, b), c)
-//}
-//
-//private fun String.center(width: Int, fillChar: Char = ' ') : String {
-//    var s = this
-//    var left = true
-//    while (s.length < width) {
-//        if (left) {
-//            s = fillChar + s
-//        } else {
-//            s += fillChar
-//        }
-//        left = !left
-//    }
-//    return s
-//}
-//
-//private fun Node.formatInternal() : FormatParts {
-//    var label = (this as? LiteralNum)?.value?.toString() ?: "."
-//    val (leftLines, leftPos, leftWidth) = (this as? PairNum)?.left?.formatInternal() ?: FormatParts(mutableListOf(), 0, 0)
-//    val (rightLines, rightPos, rightWidth) = (this as? PairNum)?.right?.formatInternal() ?: FormatParts(mutableListOf(), 0, 0)
-//
-//    // Ensure left and right lines are the same size by appending whitespace.
-//    while (leftLines.size < rightLines.size) {
-//        leftLines.add(" ".repeat(leftWidth))
-//    }
-//    while (rightLines.size < leftLines.size) {
-//        rightLines.add(" ".repeat(rightWidth))
-//    }
-//
-//    val middle = max(rightPos + leftWidth - leftPos + 1, label.length, 2)
-//    val pos = leftPos + (middle / 2)
-//    val width = leftPos + middle + rightWidth - rightPos
-//
-//    val lines = mutableListOf<String>()
-//
-//    // Pad the label with '.'s to match middle length
-//    if ((middle - label.length) % 2 == 1
-//        && parent != null
-//        && this != (parent as PairNum).left
-//        && label.length < middle) {
-//        label += '.'
-//    }
-//    label = label.center(middle, '.')
-//    if (label[0] == '.') {
-//        label = ' ' + label.substring(1)
-//    }
-//    if (label[label.length - 1] == '.') {
-//        label = label.substring(0, label.length - 1) + ' '
-//    }
-//
-//    // Add the value
-//    var valueLine = ""
-//    valueLine += " ".repeat(leftPos)
-//    valueLine += label
-//    valueLine += " ".repeat(rightWidth - rightPos)
-//    lines.add(valueLine)
-//
-//    // Add arrows when children exist.
-//    var slashLine = ""
-//    slashLine += " ".repeat(leftPos)
-//    slashLine += if (this is PairNum) "/" else " "
-//    slashLine += " ".repeat(middle - 2)
-//    slashLine += if (this is PairNum) "\\" else " "
-//    slashLine += " ".repeat(rightWidth - rightPos)
-//    lines.add(slashLine)
-//
-//    // Add rest of the lines from the left and right children
-//    (0 until leftLines.size).mapTo(lines) {
-//        var result = leftLines[it]
-//        result += " ".repeat(width - leftWidth - rightWidth)
-//        result += rightLines[it]
-//        result
-//    }
-//
-//    return FormatParts(lines, pos, width)
-//}
-//
-//private data class FormatParts(val lines: MutableList<String>, val pos: Int, val width: Int)
