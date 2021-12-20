@@ -6,25 +6,22 @@ fun main() {
     val input = parse(File("src/day18/input.txt"))
 
     var max = Int.MIN_VALUE
-
     for (i in input.indices) {
         for (j in input.indices) {
             if (i == j) continue
-            val p = PairNum()
-            p.left = input[i]
-            p.right = input[j]
-            max = maxOf(max, p.deepCopy().reduce().magnitude())
+            max = maxOf(max, (input[i] + input[j]).magnitude())
         }
     }
 
     println(max)
 }
 
+private operator fun Node.plus(other: Node) = generateSequence<Node>(PairNum(deepCopy(), other.deepCopy())) {
+    if (tryExplode(it) || trySplit(it)) it else null
+}.last()
+
 private fun Node.deepCopy(): Node = when (this) {
-    is PairNum -> PairNum().also {
-        it.left = left.deepCopy()
-        it.right = right.deepCopy()
-    }
+    is PairNum -> PairNum(left.deepCopy(), right.deepCopy())
     is LiteralNum -> LiteralNum(value)
 }
 
@@ -33,102 +30,81 @@ private fun Node.magnitude(): Int = when (this) {
     is LiteralNum -> value
 }
 
-private fun Node.reduce(): Node {
-    while (explodeIfNecessary(0) || splitIfNecessary()) {
-        // Loop until no changes are made.
+private fun dfs(root: Node, depth: Int = 0, block: Node.(Int) -> Boolean): Boolean {
+    if (root is PairNum) {
+        if (dfs(root.left, depth + 1, block)) return true
+        if (dfs(root.right, depth + 1, block)) return true
     }
-    return this
+    return block(root, depth)
 }
 
-private fun Node.splitIfNecessary(): Boolean {
-    if (this is PairNum) {
-        if (left.splitIfNecessary() || right.splitIfNecessary()) return true
-    }
-    if (this is LiteralNum && value >= 10) {
-        val newNode = PairNum()
-        newNode.left = LiteralNum(value / 2)
-        newNode.right = LiteralNum(value - value / 2)
-        if (parent!!.left == this) parent!!.left = newNode else parent!!.right = newNode
-        return true
-    }
-    return false
+private fun trySplit(root: Node): Boolean = dfs(root) {
+    if (this !is LiteralNum || value < 10) return@dfs false
+    val p = parent!!
+    val n = PairNum(LiteralNum(value / 2), LiteralNum(value - value / 2))
+    if (p.left == this) p.left = n else p.right = n
+    true
 }
 
-private fun Node.explodeIfNecessary(depth: Int): Boolean {
-    if (this is PairNum) {
-        if (left.explodeIfNecessary(depth + 1) || right.explodeIfNecessary(depth + 1)) {
-            return true
-        }
-        if (depth >= 4) {
-            val parents = mutableSetOf<Node>(this)
-            var p: PairNum? = parent
-            while (p != null) {
-                parents += p
-                p = p.parent
-            }
-            addInDirection((left as LiteralNum).value, true, parents, mutableSetOf(left))
-            addInDirection((right as LiteralNum).value, false, parents, mutableSetOf(right))
-            if (parent!!.left == this) parent!!.left = LiteralNum(0) else parent!!.right = LiteralNum(0)
-            return true
-        }
+private fun tryExplode(root: Node): Boolean = dfs(root) { depth ->
+    if (this !is PairNum || depth < 4) return@dfs false
+    val parents = mutableSetOf(this)
+    var p: PairNum? = parent!!
+    while (p != null) {
+        parents += p
+        p = p.parent
     }
-    return false
+    addInDirection((left as LiteralNum).value, true, parents, mutableSetOf(left))
+    addInDirection((right as LiteralNum).value, false, parents, mutableSetOf(right))
+    p = parent!!
+    if (p.left == this) p.left = LiteralNum(0) else p.right = LiteralNum(0)
+    true
 }
 
-private fun Node.addInDirection(value: Int, goLeft: Boolean, parents: Set<Node>, visited: MutableSet<Node>): Boolean {
+private fun Node.addInDirection(n: Int, goLeft: Boolean, parents: Set<PairNum>, visited: MutableSet<Node>): Boolean {
     if (this in visited) return false
     visited.add(this)
 
     return when (this) {
         is LiteralNum -> {
-            this.value += value
+            value += n
             true
         }
         is PairNum -> {
             if (goLeft) {
-                (this !in parents && right.addInDirection(value, goLeft, parents, visited)) ||
-                        (left.addInDirection(value, goLeft, parents, visited)) ||
-                        (parent?.addInDirection(value, goLeft, parents, visited) == true)
+                (this !in parents && right.addInDirection(n, goLeft, parents, visited)) ||
+                        (left.addInDirection(n, goLeft, parents, visited)) ||
+                        (parent?.addInDirection(n, goLeft, parents, visited) == true)
             } else {
-                (this !in parents && left.addInDirection(value, goLeft, parents, visited)) ||
-                        (right.addInDirection(value, goLeft, parents, visited)) ||
-                        (parent?.addInDirection(value, goLeft, parents, visited) == true)
+                (this !in parents && left.addInDirection(n, goLeft, parents, visited)) ||
+                        (right.addInDirection(n, goLeft, parents, visited)) ||
+                        (parent?.addInDirection(n, goLeft, parents, visited) == true)
             }
         }
     }
 }
 
-private fun parse(input: File): List<Node> = input.readLines().map { parse(it) }
+private fun parse(input: File): List<Node> = input.readLines().map { it.toNode() }
 
-private fun parse(num: String): Node {
-    var value = -1
-    val curr = ArrayDeque<PairNum>()
+private fun String.toNode(): Node {
+    if (length == 1) return LiteralNum(toInt())
 
-    for (c in num) {
-        if (c == '[') curr += PairNum()
-
-        if (c == ',') {
-            if (value >= 0) {
-                curr.last().left = LiteralNum(value)
-            } else {
-                val popped = curr.removeLast()
-                curr.last().left = popped
+    var middle = -1
+    var depth = 0
+    for ((i, c) in withIndex()) {
+        when (c) {
+            '[' -> depth++
+            ']' -> depth--
+            ',' -> {
+                if (depth == 1) {
+                    middle = i
+                    break
+                }
             }
         }
-
-        if (c == ']') {
-            if (value >= 0) {
-                curr.last().right = LiteralNum(value)
-            } else {
-                val popped = curr.removeLast()
-                curr.last().right = popped
-            }
-        }
-
-        value = if (c in '0'..'9') (c - '0') else -1
     }
 
-    return curr.first()
+    return PairNum(substring(1, middle).toNode(), substring(middle + 1, length - 1).toNode())
 }
 
 private sealed class Node {
@@ -139,18 +115,23 @@ private class LiteralNum(var value: Int) : Node() {
     override fun toString() = "$value"
 }
 
-private class PairNum : Node() {
-    var left: Node = LiteralNum(-1)
+private class PairNum(left: Node, right: Node) : Node() {
+    var left: Node = left
         set(value) {
             field = value
             value.parent = this
         }
 
-    var right: Node = LiteralNum(-1)
+    var right: Node = right
         set(value) {
             field = value
             value.parent = this
         }
+
+    init {
+        left.parent = this
+        right.parent = this
+    }
 
     override fun toString(): String {
         return "[$left,$right]"
