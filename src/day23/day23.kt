@@ -1,203 +1,138 @@
 package day23
 
 import java.io.File
-import java.lang.IllegalStateException
-import java.util.*
+import kotlin.collections.ArrayDeque
 import kotlin.math.abs
 
 fun main() {
-    val grid = File("src/day23/input.txt").readLines().map { line -> line.map { it } }
-    println(rearrange(grid))
+    println(rearrange(parse(File("src/day23/input.txt"))))
 }
 
-private fun rearrange(initialGrid: List<List<Char>>): Int {
-    val costs = mutableMapOf<List<List<Char>>, Int>()
+private fun parse(file: File): State {
+    val grid = file.readLines().map { line -> line.map { it } }
+    val hallway = List(11) { null }
+    val burrows = List(4) { col -> List(4) { row -> grid[row + 2][col * 2 + 3] } }
+    return State(burrows, hallway)
+}
 
-    val q = PriorityQueue<State>()
-    q.add(State(initialGrid, 0))
+private fun rearrange(initialState: State): Int {
+    val costs = mutableMapOf<State, Int>()
+
+    val q = ArrayDeque<State>()
+    q.add(initialState)
+
+    var min = Int.MAX_VALUE
 
     while (q.isNotEmpty()) {
-        val state = q.poll()
-        val grid = state.grid
+        val state = q.removeFirst()
+        val cost = costs.getOrDefault(state, 0)
+        if (state.checkWin()) {
+            min = minOf(min, cost)
+            continue
+        }
 
-        if (grid.checkWin()) return state.energy
-
-        fun maybeQueue(move: State) {
-            val prevCost = costs[move.grid]
-            if (prevCost == null || move.energy < prevCost) {
-                costs[move.grid] = move.energy
+        fun maybeQueue(move: State, energy: Int) {
+            val prevCost = costs.getOrDefault(move, Int.MAX_VALUE)
+            if (energy < prevCost) {
+                costs[move] = energy
                 q += move
             }
         }
 
-        for (col in 1..11) {
-            for (move in state.possibleMoves(1, col)) {
-                maybeQueue(move)
-            }
+        for ((next, energy) in state.movesFromHallway()) {
+            maybeQueue(next, cost + energy)
         }
-
-        for (row in 2..5) {
-            for (amphipod in 'A'..'D') {
-                for (move in state.possibleMoves(row, amphipod.burrowCol)) {
-                    maybeQueue(move)
-                }
-            }
+        for ((next, energy) in state.movesFromBurrows()) {
+            maybeQueue(next, cost + energy)
         }
     }
 
-    throw IllegalStateException("Could not rearrange")
+    return min
 }
 
-private fun State.possibleMoves(row: Int, col: Int): List<State> {
-    if (grid[row][col] == '.') {
-        // This is an empty space. No moves from here.
-        return emptyList()
-    }
+private fun State.movesFromHallway(): List<Pair<State, Int>> {
+    val result = mutableListOf<Pair<State, Int>>()
 
-    return when (row) {
-        in 2..5 -> {
-            // Burrow indices. Look at possible moves from here.
+    for (hallwayIndex in hallway.indices) {
+        if (hallway[hallwayIndex] in 'A'..'D') {
+            val burrowIndex = hallway[hallwayIndex]!! - 'A'
 
-            for (i in row-1 downTo 2) {
-                if (grid[i][col] != '.') {
-                    // Trapped by another amphipod. No possible moves from here.
-                    return emptyList()
-                }
-            }
+            // An amphipod can only return to its burrow if its empty or has no misplaced amphipods.
+            if (burrows[burrowIndex].any { it != hallway[hallwayIndex] && it != null }) continue
 
-            if (grid[row][col].burrowCol == col) {
-                var trapping = false
-                for (i in row+1..5) {
-                    if (grid[i][col].burrowCol != col) {
-                        trapping = true
-                    }
-                }
-                if (!trapping) {
-                    // Amphipod already home and not trapping any others. No moves required.
-                    return emptyList()
-                }
-            }
+            // Ensure the hallway path is clear so that this fella can make it home.
+            if ((hallwayIndex towards burrowIndex * 2 + 2).any { hallway[it] != null }) continue
 
-            val moves = mutableListOf<State>()
-
-            // Right moves
-            var curr = col
-            while (grid[1][curr] == '.') {
-                if (canStop(curr)) {
-                    moves += swap(row, col, 1, curr)
-                }
-                curr++
-            }
-
-            // Left moves
-            curr = col
-            while (grid[1][curr] == '.') {
-                if (canStop(curr)) {
-                    moves += swap(row, col, 1, curr)
-                }
-                curr--
-            }
-
-            moves
-        }
-        1 -> {
-            val targetCol = grid[row][col].burrowCol
-
-            for (i in 2..5) {
-                if (grid[i][targetCol] in 'A'..'D' && grid[i][targetCol] != grid[row][col]) {
-                    // Can't go home yet because there's another amphipod in the burrow that doesn't belong.
-                    return emptyList()
-                }
-            }
-
-            var curr = col
-            while (curr != targetCol) {
-                if (curr > targetCol) curr-- else curr++
-                if (grid[row][curr] != '.') {
-                    // Cannot go home from here because something's blocking the way.
-                    return emptyList()
-                }
-            }
-
-            var i = 2
-            while (grid[i + 1][targetCol] == '.') {
-                i++
-            }
-
-            // Send em home!
-            listOf(swap(row, col, i, targetCol))
-        }
-        else -> {
-            throw IllegalArgumentException()
+            // Check how deep they need to swim into the burrow. Depth can never be -1 because of the previous checks.
+            result += swap(hallwayIndex, burrowIndex, depth = burrows[burrowIndex].lastIndexOf(null))
         }
     }
+
+    return result
 }
 
-private fun State.swap(row1: Int, col1: Int, row2: Int, col2: Int): State {
-    check(grid[row1][col1] in 'A'..'D')
-    check(grid[row2][col2] == '.')
+private fun State.movesFromBurrows(): List<Pair<State, Int>> {
+    val result = mutableListOf<Pair<State, Int>>()
 
-    val next = List(grid.size) { row ->
-        when (row) {
-            row1 -> {
-                List(grid[row].size) { col ->
-                    when (col) {
-                        col1 -> grid[row2][col2]
-                        else -> grid[row][col]
-                    }
-                }
-            }
-            row2 -> {
-                List(grid[row].size) { col ->
-                    when (col) {
-                        col2 -> grid[row1][col1]
-                        else -> grid[row][col]
-                    }
-                }
-            }
-            else -> {
-                grid[row]
-            }
+    for (burrowIndex in burrows.indices) {
+        // Check if the burrow is empty or complete. If so, skip.
+        if (burrows[burrowIndex].all { it == null || it == 'A' + burrowIndex }) continue
+
+        // Find the depth of the first amphipod. This can never be -1 because of the previous checks.
+        val depth = burrows[burrowIndex].lastIndexOf(null) + 1
+
+        // Move to hallway positions to the left of the current burrow.
+        for (h in burrowIndex * 2 + 2 towards 0) {
+            if (h == 2 || h == 4 || h == 6 || h == 8) continue
+            if (hallway[h] != null) break
+            result += swap(h, burrowIndex, depth)
+        }
+
+        // Move to hallway positions to the right of the current burrow.
+        for (h in burrowIndex * 2 + 2 towards 10) {
+            if (h == 2 || h == 4 || h == 6 || h == 8) continue
+            if (hallway[h] != null) break
+            result += swap(h, burrowIndex, depth)
         }
     }
-    val dX = abs(col2 - col1)
-    val dY = abs(row2 - row1)
-    val cost = (dX + dY) * grid[row1][col1].moveEnergyCost
 
-    return State(next, energy + cost)
+    return result
 }
 
-private fun canStop(col: Int): Boolean = col != 3 && col != 5 && col != 7 && col != 9
+private fun State.swap(hallwayIndex: Int, burrowIndex: Int, depth: Int): Pair<State, Int> {
+    val nextBurrows = burrows.toMutableList().let { burrows ->
+        burrows[burrowIndex] = burrows[burrowIndex].toMutableList().let { burrow ->
+            burrow[depth] = hallway[hallwayIndex]
+            burrow
+        }
+        burrows
+    }
 
-private fun List<List<Char>>.checkWin(): Boolean {
-    for (row in 2..5) {
-        for (amphipod in 'A'..'D') {
-            if (this[row][amphipod.burrowCol] != amphipod) {
-                return false
-            }
+    val nextHallway = hallway.toMutableList().let { hallway ->
+        hallway[hallwayIndex] = burrows[burrowIndex][depth]
+        hallway
+    }
+
+    val amphipod = hallway[hallwayIndex] ?: burrows[burrowIndex][depth]!!
+    val distance = abs(hallwayIndex - (burrowIndex * 2 + 2)) + depth + 1
+
+    return State(nextBurrows, nextHallway) to distance * Cost[amphipod - 'A']
+}
+
+private fun State.checkWin(): Boolean {
+    for (expected in 'A'..'D') {
+        for (actual in burrows[expected - 'A']) {
+            if (actual != expected) return false
         }
     }
     return true
 }
 
-private val Char.burrowCol get() = when (this) {
-    'A' -> 3
-    'B' -> 5
-    'C' -> 7
-    'D' -> 9
-    else -> throw IllegalArgumentException("Tried to get burrow col for $this")
+private infix fun Int.towards(to: Int): IntProgression {
+    val step = if (this > to) -1 else 1
+    return IntProgression.fromClosedRange(this + step, to, step)
 }
 
-private val Char.moveEnergyCost get() = when (this) {
-    'A' -> 1
-    'B' -> 10
-    'C' -> 100
-    'D' -> 1000
-    else -> throw IllegalArgumentException()
-}
+private data class State(val burrows: List<List<Char?>>, val hallway: List<Char?>)
 
-private class State(val grid: List<List<Char>>, val energy: Int): Comparable<State> {
-    override fun compareTo(other: State): Int {
-        return energy.compareTo(other.energy)
-    }
-}
+private val Cost = intArrayOf(1, 10, 100, 1000)
